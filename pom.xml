@@ -51,6 +51,12 @@
         <maven.compiler.target>17</maven.compiler.target>
         <maven.compiler.release>17</maven.compiler.release>
 
+        <!-- Default scope for build-time null checking (see the `nullaway` profile below). Modules
+             enable the check by creating a `.nullaway` marker file in the module root; this is the
+             package prefix NullAway treats as annotated, which a module may narrow in its own
+             <properties>. JSpecify mode means only @NullMarked code is actually checked. -->
+        <nullaway.annotatedPackages>io.bosonnetwork</nullaway.annotatedPackages>
+
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <maven-jar-plugin.version>3.5.0</maven-jar-plugin.version>
@@ -225,4 +231,77 @@
 
         <defaultGoal>package</defaultGoal>
     </build>
+
+    <profiles>
+        <!--
+            Build-time null checking via NullAway (run as an Error Prone plugin).
+
+            This profile holds all the boilerplate centrally so individual modules do not have to
+            repeat it. It activates only for modules that contain a `.nullaway` marker file in their
+            root; modules without it compile normally with no Error Prone overhead. (File-based
+            activation is used because Maven cannot activate a profile from a property set in the
+            module POM.)
+
+            Enable for a module:   create an empty `.nullaway` file in the module root.
+                                   Optionally narrow the checked packages in the module's
+                                   <properties>, e.g.
+                <nullaway.annotatedPackages>io.bosonnetwork.yourmodule</nullaway.annotatedPackages>
+                                   (comma-separated package prefixes; defaults to io.bosonnetwork).
+            Disable for a module:  delete the `.nullaway` file.
+
+            Enforced on main sources only (the default-compile execution, not tests). Runs a
+            NullAway-only check; all other Error Prone checks are disabled. javac is forked and
+            the add-exports/add-opens are passed via -J so Error Prone can reach javac internals
+            on JDK 17 regardless of the build's invocation directory.
+        -->
+        <profile>
+            <id>nullaway</id>
+            <activation>
+                <file>
+                    <exists>${basedir}/.nullaway</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-compiler-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>default-compile</id>
+                                <configuration>
+                                    <fork>true</fork>
+                                    <compilerArgs>
+                                        <arg>-XDcompilePolicy=simple</arg>
+                                        <arg>--should-stop=ifError=FLOW</arg>
+                                        <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:AnnotatedPackages=${nullaway.annotatedPackages}</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</arg>
+                                        <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
+                                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
+                                        <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
+                                    </compilerArgs>
+                                    <annotationProcessorPaths>
+                                        <path>
+                                            <groupId>com.google.errorprone</groupId>
+                                            <artifactId>error_prone_core</artifactId>
+                                        </path>
+                                        <path>
+                                            <groupId>com.uber.nullaway</groupId>
+                                            <artifactId>nullaway</artifactId>
+                                        </path>
+                                    </annotationProcessorPaths>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
