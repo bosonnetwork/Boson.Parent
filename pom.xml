@@ -114,6 +114,10 @@
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>${maven-javadoc-plugin.version}</version>
                     <configuration>
+                        <!-- The published API: public and protected members only. This is also
+                             javadoc's default, but it is a deliberate choice rather than a
+                             redundant line to prune - private members, package-private members
+                             and package-private classes stay out of the generated docs. -->
                         <show>protected</show>
                         <!-- <doclint>all,-missing</doclint> -->
                         <!-- The JDK's own block tags. javadoc does not know them unless they are
